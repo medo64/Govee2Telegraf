@@ -35,13 +35,15 @@ while(true); do
 
     TIME_START=$(date +%s)
     while IFS= read -r LINE; do
-        DATA=`echo "$LINE" | grep '(Temp)' | grep '(Humidity)' | grep '(Battery)'`
-        if [ "$DATA" == "" ]; then continue; fi
+        INPUT=`echo "$LINE" | grep -E '\(Temp\).*\(Humidity\).*\(Battery\)'`
+        if [ "$INPUT" == "" ]; then continue; fi
 
-        DEVICE=`echo $DATA | awk '{print $2}' | tr -d '[]'`
-        TEMPERATURE=`echo $DATA | awk '{print $4}' | tr -dc '0-9.'`
-        HUMIDITY=`echo $DATA | awk '{print $6}' | tr -dc '0-9.'`
-        BATTERY=`echo $DATA | awk '{print $8}' | tr -dc '0-9.'`
+        DATA=`echo $INPUT | awk '{print $4 " " $6 " " $8}' | tr -dc '0-9.'`
+        DEVICE=`echo $INPUT | awk '{print $2}' | tr -d '[]' | tr '[:lower:]' '[:upper:]'`
+
+        TEMPERATURE=`echo $DATA | cut -d ' ' -f 1`
+        HUMIDITY=`echo $DATA | cut -d ' ' -f 2`
+        BATTERY=`echo $DATA | cut -d ' ' -f 3`
 
         echo -ne "${ANSI_CYAN}"
         printf "%s %5s°C %4s%% (%s%%)\n" $DEVICE $TEMPERATURE $HUMIDITY $BATTERY
