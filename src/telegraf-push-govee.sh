@@ -43,7 +43,7 @@ while(true); do
             echo -e "${ANSI_RED}Not sending to Telegraf ($MISSING_TELEGRAF_VARIABLES)${ANSI_RESET}"
             echo
         fi
-    done < <(/app/goveebttemplogger --passive)
+    done < <(/app/goveebttemplogger)
     TIME_END=$(date +%s)
 
     echo
