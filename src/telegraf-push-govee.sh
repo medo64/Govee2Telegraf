@@ -70,7 +70,7 @@ while(true); do
 
     for i in 1 2 3 4 5; do
         echo -ne "${ANSI_YELLOW}.${ANSI_RESET}"
-        sleep 1
+        sleep 1.1
     done
     echo
 
