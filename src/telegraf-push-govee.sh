@@ -38,7 +38,7 @@ while(true); do
         INPUT=`echo "$LINE" | grep -E '\(Temp\).*\(Humidity\).*\(Battery\)'`
         if [ "$INPUT" == "" ]; then continue; fi
 
-        DATA=`echo $INPUT | awk '{print $4 " " $6 " " $8}' | tr -dc '0-9.'`
+        DATA=`echo $INPUT | awk '{print $4 " " $6 " " $8}' | tr -dc '0-9. '`
         DEVICE=`echo $INPUT | awk '{print $2}' | tr -d '[]' | tr '[:lower:]' '[:upper:]'`
 
         TEMPERATURE=`echo $DATA | cut -d ' ' -f 1`
