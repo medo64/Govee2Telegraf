@@ -1,0 +1,8 @@
+#!/bin/sh
+# PRERM script for goveebttemplogger
+
+echo "`date --rfc-3339='seconds'` \033[36mHI I'M A PRERM SCRIPT running \033[32m${0}\033[36m as \033[91m`whoami`\033[39m"
+systemctl stop goveebttemplogger.service
+systemctl disable goveebttemplogger.service
+
+exit 0
