@@ -10,8 +10,9 @@ endif
 
 all:
 	@echo
-	@echo $(NAME):latest
+	@echo $(NAME):unstable
 ifneq ($(TAG),)
+	@echo $(NAME):latest
 	@echo $(NAME):$(TAG)
 endif
 	@echo
@@ -24,7 +25,5 @@ ifneq ($(TAG),)
 	@docker save $(NAME):$(TAG) | gzip > ./dist/$(NAME).$(TAG).tar.gz
 	@echo "Saved to ./dist/$(NAME).$(TAG).tar.gz"
 else
-	@docker build -t $(NAME):latest -f src/Dockerfile .
+	@docker build -t $(NAME):unstable -f src/Dockerfile .
 endif
-	@docker save $(NAME):latest | gzip > ./dist/$(NAME).latest.tar.gz
-	@echo "Saved to ./dist/$(NAME).latest.tar.gz"
