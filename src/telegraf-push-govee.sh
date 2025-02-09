@@ -19,6 +19,14 @@ if [ "$MISSING_TELEGRAF_VARIABLES" != "" ]; then
     echo -e "${ANSI_RESET}"
 fi
 
+EXTRA_ARGS=
+if [ "$PASSIVE" == "1" ] || [ "$PASSIVE" == "true" ] || [ "$PASSIVE" == "yes" ]; then
+    EXTRA_ARGS="--passive"
+    echo -e "${ANSI_YELLOW}Using passive mode${ANSI_RESET}"
+    echo
+fi
+
+
 while(true); do
 
     TIME_START=$(date +%s)
@@ -43,7 +51,7 @@ while(true); do
             echo -e "${ANSI_RED}Not sending to Telegraf ($MISSING_TELEGRAF_VARIABLES)${ANSI_RESET}"
             echo
         fi
-    done < <(/app/goveebttemplogger)
+    done < <(/app/goveebttemplogger $EXTRA_ARGS)
     TIME_END=$(date +%s)
 
     echo

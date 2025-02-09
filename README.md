@@ -29,6 +29,13 @@ work:
 | `TELEGRAF_USERNAME` | Telegraf user name                            |
 | `TELEGRAF_PASSWORD` | Telegraf password                             |
 
+The following environment variables are for troubleshooting purposes and
+usually require no configuration:
+
+|                     |                                               |
+|---------------------|-----------------------------------------------|
+| `PASSIVE`           | If set to `1`, use passive LE scanning        |
+
 
 ## Run Docker Image
 
