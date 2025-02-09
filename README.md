@@ -43,7 +43,7 @@ docker run \
     -e TELEGRAF_BUCKET=<bucket> \
     -e TELEGRAF_USERNAME=<user> \
     -e TELEGRAF_PASSWORD=<password> \
-    govee2telegraf:latest
+    medo64/govee2telegraf:latest
 ~~~
 
 
