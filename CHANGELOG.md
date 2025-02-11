@@ -3,6 +3,12 @@ CHANGELOG
 Changelog at https://github.com/medo64/Govee2Telegraf/blob/main/CHANGELOG.md
 
 
+[1.2.0]
+
+- Fixed negative temperature support
+- Added debug mode
+
+
 [1.1.0]
 
 - Not using passive mode by default (allows to work without desktop environment)
