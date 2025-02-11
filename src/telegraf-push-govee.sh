@@ -2,6 +2,7 @@
 
 ANSI_RED="\e[91m"
 ANSI_YELLOW="\e[93m"
+ANSI_BLUE="\e[34m"
 ANSI_MAGENTA="\e[95m"
 ANSI_CYAN="\e[96m"
 ANSI_RESET="\e[0m"
@@ -23,6 +24,14 @@ if [ "$MISSING_TELEGRAF_VARIABLES" != "" ]; then
     echo -e "${ANSI_RESET}"
 fi
 
+if [ "$DEBUG" == "1" ] || [ "$DEBUG" == "true" ] || [ "$DEBUG" == "yes" ]; then
+    DEBUG=1
+    echo -e "${ANSI_YELLOW}Showing extra debug information${ANSI_RESET}"
+    echo
+else
+    DEBUG=0
+fi
+
 EXTRA_ARGS=
 if [ "$PASSIVE" == "1" ] || [ "$PASSIVE" == "true" ] || [ "$PASSIVE" == "yes" ]; then
     EXTRA_ARGS="--passive"
@@ -30,13 +39,13 @@ if [ "$PASSIVE" == "1" ] || [ "$PASSIVE" == "true" ] || [ "$PASSIVE" == "yes" ];
     echo
 fi
 
-
 while(true); do
 
     TIME_START=$(date +%s)
     while IFS= read -r LINE; do
         INPUT=`echo "$LINE" | grep -E '\(Temp\).*\(Humidity\).*\(Battery\)'`
         if [ "$INPUT" == "" ]; then continue; fi
+        if [ "$DEBUG" -ne 0 ]; then echo -e "${ANSI_BLUE}$INPUT${ANSI_RESET}"; fi
 
         DATA=`echo $INPUT | awk '{print $4 " " $6 " " $8}' | tr -dc '0-9-. '`
         DEVICE=`echo $INPUT | awk '{print $2}' | tr -d '[]' | tr '[:lower:]' '[:upper:]'`

@@ -35,6 +35,7 @@ usually require no configuration:
 |                     |                                               |
 |---------------------|-----------------------------------------------|
 | `PASSIVE`           | If set to `1`, use passive LE scanning        |
+| `DEBUG`             | If set to `1`, additional debugging is shown  |
 
 
 ## Run Docker Image
