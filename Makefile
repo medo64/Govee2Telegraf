@@ -1,5 +1,17 @@
 .PHONY: all
 
+ifeq ($(shell command -v cmake 2>/dev/null),)
+  $(error 'cmake' not found)
+endif
+
+ifeq ($(shell command -v docker 2>/dev/null),)
+  $(error 'docker' not found)
+endif
+
+ifeq ($(shell command -v git 2>/dev/null),)
+  $(error 'git' not found)
+endif
+
 NAME=govee2telegraf
 TAG=
 
