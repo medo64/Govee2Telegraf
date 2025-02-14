@@ -19,6 +19,10 @@ RUN rc-update add bluetooth default
 # GoveeBTTempLogger
 RUN apk add bluez-dev libstdc++
 
+# Environment
+ENV ENV=/etc/profile
+RUN echo "alias ll='ls -la'" > /etc/profile.d/alias.sh
+
 # Executables
 WORKDIR /app
 COPY lib/GoveeBTTempLogger/build/goveebttemplogger /app
