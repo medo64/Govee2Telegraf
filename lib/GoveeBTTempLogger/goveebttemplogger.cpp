@@ -103,6 +103,9 @@ typedef struct {
 } __attribute__((packed)) bdaddr_t;
 #endif // !bdaddr_t
 #include "wimiso8601.h"
+#if !defined(__GLIBC__)
+    #define stat64 stat
+#endif
 /////////////////////////////////////////////////////////////////////////////
 #if __has_include("goveebttemplogger-version.h")
 #include "goveebttemplogger-version.h"
@@ -822,10 +825,6 @@ Govee_Temp& Govee_Temp::operator +=(const Govee_Temp& b)
 	}
 	return(*this);
 }
-/////////////////////////////////////////////////////////////////////////////
-#ifdef _BLUEZ_HCI_
-
-#endif // _BLUEZ_HCI_
 /////////////////////////////////////////////////////////////////////////////
 // The following operator was required so I could use the std::map<> to use BlueTooth Addresses as the key
 bool operator <(const bdaddr_t &a, const bdaddr_t &b)
@@ -2811,13 +2810,13 @@ time_t ConnectAndDownload(int BlueToothDevice_Handle, const bdaddr_t GoveeBTAddr
 							bt_uuid_t INTELLI_ROCKS_13; bt_uuid128_create(&INTELLI_ROCKS_13, { 0x49, 0x4e, 0x54, 0x45, 0x4c, 0x4c, 0x49, 0x5f, 0x52, 0x4f, 0x43, 0x4b, 0x53, 0x5f, 0x20, 0x13 });
 							//bt_uuid_t INTELLI_ROCKS_14; bt_uuid128_create(&INTELLI_ROCKS_14, { 0x49, 0x4e, 0x54, 0x45, 0x4c, 0x4c, 0x49, 0x5f, 0x52, 0x4f, 0x43, 0x4b, 0x53, 0x5f, 0x20, 0x14 });
 							if (bts->theUUID == INTELLI_ROCKS_HW)
-								for (auto btsc = bts->characteristics.begin(); btsc != bts->characteristics.end(); btsc++)
+								for (auto & btsc : bts->characteristics)
 								{
-									if (btsc->theUUID == INTELLI_ROCKS_12)
-										bt_Handle_RequestData = btsc->ending_handle;
-									if (btsc->theUUID == INTELLI_ROCKS_13)
-										bt_Handle_ReturnData = btsc->ending_handle;
-									struct __attribute__((__packed__)) { uint8_t opcode; uint16_t handle; uint8_t buf[2]; } pkt = { BT_ATT_OP_WRITE_REQ, btsc->ending_handle, {0x01 ,0x00} };
+									if (btsc.theUUID == INTELLI_ROCKS_12)
+										bt_Handle_RequestData = btsc.ending_handle;
+									if (btsc.theUUID == INTELLI_ROCKS_13)
+										bt_Handle_ReturnData = btsc.ending_handle;
+									struct __attribute__((__packed__)) { uint8_t opcode; uint16_t handle; uint8_t buf[2]; } pkt = { BT_ATT_OP_WRITE_REQ, btsc.ending_handle, {0x01 ,0x00} };
 									pkt.handle++;
 									if (ConsoleVerbosity > 1)
 									{
@@ -3912,6 +3911,7 @@ bool bluez_discovery(DBusConnection* dbus_conn, const char* adapter_path, const 
 		std::cerr << ssOutput.str();
 	return(bStarted);
 }
+std::map<std::string, std::string> bluez_GoveeCharacteristics;
 void bluez_device_connect(DBusConnection* dbus_conn, const char* adapter_path, const bdaddr_t& dbusBTAddress)
 {
 	// this routine requests bluez connect to the device.
@@ -3931,9 +3931,10 @@ void bluez_device_connect(DBusConnection* dbus_conn, const char* adapter_path, c
 	{
 		dbus_connection_send(dbus_conn, dbus_msg, nullptr);
 		if (ConsoleVerbosity > 0)
-			ssOutput << "[                   ] ";
+			ssOutput << "[-------------------] ";
 		ssOutput << dbus_message_get_path(dbus_msg) << ": " << dbus_message_get_interface(dbus_msg) << ": " << dbus_message_get_member(dbus_msg) << std::endl;
 		dbus_message_unref(dbus_msg);
+		bluez_GoveeCharacteristics.clear(); // Make sure the map of characteristics is empty if we are attempting to connect to a new device.
 	}
 	if (ConsoleVerbosity > 0)
 		std::cout << ssOutput.str();
@@ -3957,7 +3958,7 @@ void bluez_device_disconnect(DBusConnection* dbus_conn, const char* adapter_path
 	{
 		dbus_connection_send(dbus_conn, dbus_msg, nullptr);
 		if (ConsoleVerbosity > 0)
-			ssOutput << "[                   ] ";
+			ssOutput << "[-------------------] ";
 		ssOutput << dbus_message_get_path(dbus_msg) << ": " << dbus_message_get_interface(dbus_msg) << ": " << dbus_message_get_member(dbus_msg) << std::endl;
 		dbus_message_unref(dbus_msg);
 	}
@@ -4010,41 +4011,191 @@ bool bluez_device_download(DBusConnection* dbus_conn, const char* adapter_path, 
 	dbus_error_init(&dbus_error); // https://dbus.freedesktop.org/doc/api/html/group__DBusErrors.html#ga8937f0b7cdf8554fa6305158ce453fbe
 	DBusMessage* dbus_reply_getall_services = dbus_connection_send_with_reply_and_block(dbus_conn, dbus_msg_getall_services, DBUS_TIMEOUT_USE_DEFAULT, &dbus_error); // https://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html#ga8d6431f17a9e53c9446d87c2ba8409f0
 	if (ConsoleVerbosity > 0)
-		ssOutput << "[                   ] ";
+		ssOutput << "[-------------------] ";
 	ssOutput << dbus_message_get_path(dbus_msg_getall_services) << ": " << dbus_message_get_interface(dbus_msg_getall_services) << ": " << dbus_message_get_member(dbus_msg_getall_services);
 	ssOutput << " " << std::string(cpDevice) << " " << std::string(cpServiceData);
 	if (!dbus_reply_getall_services)
 	{
 		if (dbus_error_is_set(&dbus_error))
 		{
-			ssOutput << ": Error: " << dbus_error.message << " " << __FILE__ << "(" << __LINE__ << ")";
+			ssOutput << ": Error: " << dbus_error.message << " " << __FILE__ << "(" << __LINE__ << ")" << std::endl;
 			dbus_error_free(&dbus_error);
 		}
 	}
 	else
 	{
-		//TODO: decode what was returned dbus_reply_getall_services
 		const std::string dbus_reply_Signature(dbus_message_get_signature(dbus_reply_getall_services));
-		ssOutput << ": Reply Signature (" << dbus_reply_Signature << ")";
+		ssOutput << ": Reply Signature (" << dbus_reply_Signature << ")" << std::endl;
 		/*
-			[2024-12-08T18:37:57] [A4:C1:38:0D:42:7B] (Temp) 14.5°C (Humidity)  54.4% (Battery) 100% (GVH5075)
-			[                   ] /org/bluez/hci0/dev_A4_C1_38_0D_42_7B: org.bluez.Device1: Connect
-			[                   ] [A4:C1:38:0D:42:7B] Connected: true
-			[                   ] [A4:C1:38:0D:42:7B] UUIDs: 00001800-0000-1000-8000-00805f9b34fb
-			[                   ] [A4:C1:38:0D:42:7B] UUIDs: 00001801-0000-1000-8000-00805f9b34fb
-			[                   ] [A4:C1:38:0D:42:7B] UUIDs: 0000180a-0000-1000-8000-00805f9b34fb
-			[                   ] [A4:C1:38:0D:42:7B] UUIDs: 00010203-0405-0607-0809-0a0b0c0d1912
-			[                   ] [A4:C1:38:0D:42:7B] UUIDs: 494e5445-4c4c-495f-524f-434b535f4857
-			[                   ] [A4:C1:38:0D:42:7B] ServicesResolved: true
-			[                   ] /org/bluez/hci0/dev_A4_C1_38_0D_42_7B: org.freedesktop.DBus.Properties: Get org.bluez.Device1 UUIDs: Reply Signature (v)
-			[                   ] /org/bluez/hci0/dev_A4_C1_38_0D_42_7B: org.bluez.Device1: Disconnect
-			[                   ] [A4:C1:38:0D:42:7B] Modalias
-			[                   ] [A4:C1:38:0D:42:7B] ServicesResolved: false
-			[                   ] [A4:C1:38:0D:42:7B] Connected: false
+		    What is returned is a variant with an array of strings, each string being the UUID of a service.
+			[2025-02-04T20:51:28] [A4:C1:38:DC:CC:3D] (Temp) 17.9°C (Humidity)  47.8% (Battery) 100% (GVH5174)
+			[                   ] bluez_device_connect /org/bluez/hci0 A4:C1:38:DC:CC:3D
+			[-------------------] /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D: org.bluez.Device1: Connect
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_PropertiesChanged org.bluez.Device1
+			[                   ] [A4:C1:38:DC:CC:3D] Connected: true
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008 org.bluez.GattService1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008/char0009 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008/char0009 org.bluez.GattCharacteristic1
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 00002a05-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] Service
+			[                   ] [A4:C1:38:DC:CC:3D] Value
+			[                   ] [A4:C1:38:DC:CC:3D] Notifying
+			[                   ] [A4:C1:38:DC:CC:3D] Flags
+			[                   ] [A4:C1:38:DC:CC:3D] MTU
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008/char0009 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008/char0009/desc000b org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008/char0009/desc000b org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service0008/char0009/desc000b org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000c org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000c org.bluez.GattService1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000c org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000c/char000d org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000c/char000d org.bluez.GattCharacteristic1
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 00002a50-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] Service
+			[                   ] [A4:C1:38:DC:CC:3D] Value
+			[                   ] [A4:C1:38:DC:CC:3D] Flags
+			[                   ] [A4:C1:38:DC:CC:3D] MTU
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000c/char000d org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f org.bluez.GattService1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010 org.bluez.GattCharacteristic1
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 494e5445-4c4c-495f-524f-434b535f2011
+			[                   ] [A4:C1:38:DC:CC:3D] Service
+			[                   ] [A4:C1:38:DC:CC:3D] Value
+			[                   ] [A4:C1:38:DC:CC:3D] Notifying
+			[                   ] [A4:C1:38:DC:CC:3D] Flags
+			[                   ] [A4:C1:38:DC:CC:3D] NotifyAcquired
+			[                   ] [A4:C1:38:DC:CC:3D] MTU
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010/desc0012 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010/desc0012 org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010/desc0012 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010/desc0013 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010/desc0013 org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0010/desc0013 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014 org.bluez.GattCharacteristic1
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 494e5445-4c4c-495f-524f-434b535f2012
+			[                   ] [A4:C1:38:DC:CC:3D] Service
+			[                   ] [A4:C1:38:DC:CC:3D] Value
+			[                   ] [A4:C1:38:DC:CC:3D] Notifying
+			[                   ] [A4:C1:38:DC:CC:3D] Flags
+			[                   ] [A4:C1:38:DC:CC:3D] NotifyAcquired
+			[                   ] [A4:C1:38:DC:CC:3D] MTU
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014/desc0016 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014/desc0016 org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014/desc0016 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014/desc0017 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014/desc0017 org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0014/desc0017 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018 org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018 org.bluez.GattCharacteristic1
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 494e5445-4c4c-495f-524f-434b535f2013
+			[                   ] [A4:C1:38:DC:CC:3D] Service
+			[                   ] [A4:C1:38:DC:CC:3D] Value
+			[                   ] [A4:C1:38:DC:CC:3D] Notifying
+			[                   ] [A4:C1:38:DC:CC:3D] Flags
+			[                   ] [A4:C1:38:DC:CC:3D] NotifyAcquired
+			[                   ] [A4:C1:38:DC:CC:3D] MTU
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018 org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018/desc001a org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018/desc001a org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018/desc001a org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018/desc001b org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018/desc001b org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service000f/char0018/desc001b org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c org.bluez.GattService1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c/char001d org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c/char001d org.bluez.GattCharacteristic1
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 00010203-0405-0607-0809-0a0b0c0d2b12
+			[                   ] [A4:C1:38:DC:CC:3D] Service
+			[                   ] [A4:C1:38:DC:CC:3D] Value
+			[                   ] [A4:C1:38:DC:CC:3D] Flags
+			[                   ] [A4:C1:38:DC:CC:3D] WriteAcquired
+			[                   ] [A4:C1:38:DC:CC:3D] MTU
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c/char001d org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c/char001d/desc001f org.freedesktop.DBus.Introspectable
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c/char001d/desc001f org.bluez.GattDescriptor1
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_InterfacesAdded /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D/service001c/char001d/desc001f org.freedesktop.DBus.Properties
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_PropertiesChanged org.bluez.Device1
+			[                   ] [A4:C1:38:DC:CC:3D] UUIDs: 00001800-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] UUIDs: 00001801-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] UUIDs: 0000180a-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] UUIDs: 00010203-0405-0607-0809-0a0b0c0d1912
+			[                   ] [A4:C1:38:DC:CC:3D] UUIDs: 494e5445-4c4c-495f-524f-434b535f4857
+			[                   ] [A4:C1:38:DC:CC:3D] ServicesResolved: true
+			[                   ] bluez_device_download /org/bluez/hci0 A4:C1:38:DC:CC:3D
+			[-------------------] /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D: org.freedesktop.DBus.Properties: Get org.bluez.Device1 UUIDs: Reply Signature (v)
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 00001800-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 00001801-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 0000180a-0000-1000-8000-00805f9b34fb
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 00010203-0405-0607-0809-0a0b0c0d1912
+			[                   ] [A4:C1:38:DC:CC:3D] UUID: 494e5445-4c4c-495f-524f-434b535f4857
+			[                   ] bluez_device_disconnect /org/bluez/hci0 A4:C1:38:DC:CC:3D
+			[-------------------] /org/bluez/hci0/dev_A4_C1_38_DC_CC_3D: org.bluez.Device1: Disconnect
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_PropertiesChanged org.bluez.Device1
+			[                   ] [A4:C1:38:DC:CC:3D] Modalias
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_PropertiesChanged org.bluez.Device1
+			[                   ] [A4:C1:38:DC:CC:3D] ServicesResolved: false
+			[                   ] [A4:C1:38:DC:CC:3D] bluez_dbus_msg_PropertiesChanged org.bluez.Device1
+			[                   ] [A4:C1:38:DC:CC:3D] Connected: false
 		*/
+		DBusMessageIter reply_iter;
+		dbus_message_iter_init(dbus_reply_getall_services, &reply_iter);
+		if (DBUS_TYPE_VARIANT == dbus_message_iter_get_arg_type(&reply_iter))
+		{
+			DBusMessageIter variant_iter;
+			dbus_message_iter_recurse(&reply_iter, &variant_iter);
+			auto type = dbus_message_iter_get_arg_type(&variant_iter);
+			switch (type) 
+			{
+				case DBUS_TYPE_STRING:
+				{
+					const char* str;
+					dbus_message_iter_get_basic(&variant_iter, &str);
+					ssOutput << " Decoded string: " << str << std::endl;
+					break;
+				}
+				case DBUS_TYPE_INT32:
+				{
+					int32_t value;
+					dbus_message_iter_get_basic(&variant_iter, &value);
+					ssOutput << " Decoded int32: " << value << std::endl;
+					break;
+				}
+				case DBUS_TYPE_ARRAY:
+				{
+					DBusMessageIter array_iter;
+					dbus_message_iter_recurse(&variant_iter, &array_iter);
+					do
+					{
+						if (DBUS_TYPE_STRING == dbus_message_iter_get_arg_type(&array_iter))
+						{
+							const char* str;
+							dbus_message_iter_get_basic(&array_iter, &str);
+							ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] UUID: " << str << std::endl;
+						}
+						else 
+							ssOutput << " " << dbus_message_iter_type_to_string(dbus_message_iter_get_arg_type(&array_iter));
+					} while (dbus_message_iter_next(&array_iter));
+					break;
+				}
+				// Add more cases as needed for other types
+				default:
+					ssOutput << " Unsupported variant type: " << dbus_message_iter_type_to_string(type);
+					break;
+			}
+		}
 		dbus_message_unref(dbus_reply_getall_services);
 	}
-	ssOutput << std::endl;
 	dbus_message_unref(dbus_msg_getall_services);
 
 	if (ConsoleVerbosity > 0)
@@ -4054,12 +4205,15 @@ bool bluez_device_download(DBusConnection* dbus_conn, const char* adapter_path, 
 	return (bDownloaded);
 }
 /////////////////////////////////////////////////////////////////////////////
-std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbusBTAddress, Govee_Temp& dbusTemp, bool& bServicesResolved)
+std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbusBTAddress, Govee_Temp& dbusTemp, bool& bServicesResolved, const std::string & root_object_path)
 {
 	// this should be handling the "a{sv}" portion of the message
 	std::ostringstream ssOutput;
 	do
 	{
+		ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] ";
+		if (ConsoleVerbosity > 3)
+			ssOutput << root_object_path << " ";
 		DBusMessageIter dict2_iter;
 		dbus_message_iter_recurse(&array_iter, &dict2_iter);
 		DBusBasicValue value;
@@ -4074,13 +4228,14 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 			if (DBUS_TYPE_INT16 == dbus_message_Type)
 			{
 				dbus_message_iter_get_basic(&variant_iter, &value);
-				ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << value.i16 << std::endl;
+				ssOutput << Key << ": " << value.i16 << std::endl;
 			}
 		}
 		else if (!Key.compare("ManufacturerData"))
 		{
 			if (DBUS_TYPE_ARRAY == dbus_message_Type)
 			{
+				bool bFirstData(true);
 				DBusMessageIter array3_iter;
 				dbus_message_iter_recurse(&variant_iter, &array3_iter);
 				do
@@ -4099,7 +4254,7 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 								// Total Hack 
 								uint16_t BTManufacturer(uint16_t(dbusBTAddress.b[1]) << 8 | uint16_t(dbusBTAddress.b[2]));
 								if (BTManufacturer == ManufacturerID)
-									ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] *** Meat Thermometer ***" << std::endl;
+									ssOutput << "*** Meat Thermometer ***" << std::endl;
 							}
 							dbus_message_iter_next(&dict1_iter);
 							if (DBUS_TYPE_VARIANT == dbus_message_iter_get_arg_type(&dict1_iter))
@@ -4119,7 +4274,13 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 											ManufacturerData.push_back(value.byt);
 										}
 									} while (dbus_message_iter_next(&array4_iter));
-									ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << std::setfill('0') << std::hex << std::setw(4) << ManufacturerID << ":";
+									if (!bFirstData)
+									{
+										ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] ";
+										if (ConsoleVerbosity > 3)
+											ssOutput << root_object_path << " ";
+									}
+									ssOutput << Key << ": " << std::setfill('0') << std::hex << std::setw(4) << ManufacturerID << ":";
 									for (auto& Data : ManufacturerData)
 										ssOutput << std::setw(2) << int(Data);
 									if (ConsoleVerbosity > 4)
@@ -4151,6 +4312,7 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 							}
 						}
 					}
+					bFirstData = false;
 				} while (dbus_message_iter_next(&array3_iter));
 			}
 		}
@@ -4159,7 +4321,7 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 			if ((DBUS_TYPE_STRING == dbus_message_Type) || (DBUS_TYPE_OBJECT_PATH == dbus_message_Type))
 			{
 				dbus_message_iter_get_basic(&variant_iter, &value);
-				ssOutput << "[" << getTimeISO8601(true) << "] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << value.str << std::endl;
+				ssOutput << Key << ": " << value.str << std::endl;
 			}
 		}
 		else if (!Key.compare("Name"))
@@ -4167,14 +4329,28 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 			if ((DBUS_TYPE_STRING == dbus_message_Type) || (DBUS_TYPE_OBJECT_PATH == dbus_message_Type))
 			{
 				dbus_message_iter_get_basic(&variant_iter, &value);
-				ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << value.str << std::endl;
+				ssOutput << Key << ": " << value.str << std::endl;
 				dbusTemp.SetModel(std::string(value.str));
 				if (dbusTemp.GetModel() != ThermometerType::Unknown)
 					GoveeThermometers.insert(std::pair<bdaddr_t, ThermometerType>(dbusBTAddress, dbusTemp.GetModel()));
 			}
 		}
+		else if (!Key.compare("UUID"))
+		{
+			if ((DBUS_TYPE_STRING == dbus_message_Type) || (DBUS_TYPE_OBJECT_PATH == dbus_message_Type))
+			{
+				dbus_message_iter_get_basic(&variant_iter, &value);
+				std::string UUID(value.str);
+				ssOutput << Key << ": " << UUID << std::endl;
+				if (!UUID.compare("494e5445-4c4c-495f-524f-434b535f2011") ||
+					!UUID.compare("494e5445-4c4c-495f-524f-434b535f2012") ||
+					!UUID.compare("494e5445-4c4c-495f-524f-434b535f2013"))
+					bluez_GoveeCharacteristics.insert(std::make_pair(UUID, root_object_path));
+			}
+		}
 		else if (!Key.compare("UUIDs"))
 		{
+			bool bFirstUUID(true);
 			DBusMessageIter array3_iter;
 			dbus_message_iter_recurse(&variant_iter, &array3_iter);
 			do
@@ -4182,10 +4358,17 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 				if (DBUS_TYPE_STRING == dbus_message_iter_get_arg_type(&array3_iter))
 				{
 					dbus_message_iter_get_basic(&array3_iter, &value);
-					ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << value.str << std::endl;
+					if (!bFirstUUID)
+					{
+						ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] ";
+						if (ConsoleVerbosity > 3)
+							ssOutput << root_object_path << " ";
+					}
+					ssOutput << Key << ": " << value.str << std::endl;
 					dbusTemp.SetModel(std::string(value.str));
 					if (dbusTemp.GetModel() != ThermometerType::Unknown)
 						GoveeThermometers.insert(std::pair<bdaddr_t, ThermometerType>(dbusBTAddress, dbusTemp.GetModel()));
+					bFirstUUID = false;
 				}
 			} while (dbus_message_iter_next(&array3_iter));
 		}
@@ -4194,7 +4377,7 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 			if (DBUS_TYPE_BOOLEAN == dbus_message_Type)
 			{
 				dbus_message_iter_get_basic(&variant_iter, &value);
-				ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << std::boolalpha << bool(value.bool_val) << std::endl;
+				ssOutput << Key << ": " << std::boolalpha << bool(value.bool_val) << std::endl;
 			}
 		}
 		else if (!Key.compare("ServicesResolved"))
@@ -4202,12 +4385,12 @@ std::string bluez_dbus_msg_iter(DBusMessageIter& array_iter, const bdaddr_t& dbu
 			if (DBUS_TYPE_BOOLEAN == dbus_message_Type)
 			{
 				dbus_message_iter_get_basic(&variant_iter, &value);
-				ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << ": " << std::boolalpha << bool(value.bool_val) << std::endl;
+				ssOutput << Key << ": " << std::boolalpha << bool(value.bool_val) << std::endl;
 				bServicesResolved = bool(value.bool_val);
 			}
 		}
 		else
-			ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << Key << std::endl;
+			ssOutput << Key << std::endl;
 	} while (dbus_message_iter_next(&array_iter));
 	return(ssOutput.str());
 }
@@ -4276,7 +4459,7 @@ void bluez_dbus_FindExistingDevices(DBusConnection* dbus_conn, const std::set<bd
 									{
 										Govee_Temp localTemp;
 										bool bServicesResolved(false);
-										ssOutput << bluez_dbus_msg_iter(array3_iter, localBTAddress, localTemp, bServicesResolved);
+										ssOutput << bluez_dbus_msg_iter(array3_iter, localBTAddress, localTemp, bServicesResolved, dict1_object_path);
 										if (localTemp.IsValid())
 										{
 											std::queue<Govee_Temp> foo;
@@ -4444,12 +4627,14 @@ void bluez_dbus_msg_InterfacesAdded(DBusMessage* dbus_msg, bdaddr_t & dbusBTAddr
 				DBusBasicValue value;
 				dbus_message_iter_get_basic(&dict1_iter, &value);
 				std::string val(value.str);
-				if (!val.compare("org.bluez.Device1"))
+				if (ConsoleVerbosity > 2)
+					ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << __func__ << " " << root_object_path << " " << val << std::endl;
+				if (!val.compare("org.bluez.Device1") || !val.compare("org.bluez.GattCharacteristic1"))
 				{
 					dbus_message_iter_next(&dict1_iter);
 					DBusMessageIter array2_iter;
 					dbus_message_iter_recurse(&dict1_iter, &array2_iter);
-					ssOutput << bluez_dbus_msg_iter(array2_iter, dbusBTAddress, dbusTemp, bServicesResolved); // handle the "a{sv}" portion of the message
+					ssOutput << bluez_dbus_msg_iter(array2_iter, dbusBTAddress, dbusTemp, bServicesResolved, root_object_path); // handle the "a{sv}" portion of the message
 				}
 			} while (dbus_message_iter_next(&array1_iter));
 		}
@@ -4486,7 +4671,9 @@ void bluez_dbus_msg_PropertiesChanged(DBusMessage* dbus_msg, bdaddr_t& dbusBTAdd
 			dbus_message_iter_next(&root_iter);
 			DBusMessageIter array_iter;
 			dbus_message_iter_recurse(&root_iter, &array_iter);
-			ssOutput << bluez_dbus_msg_iter(array_iter, dbusBTAddress, dbusTemp, bServicesResolved); // handle the "a{sv}" portion of the message
+			if (ConsoleVerbosity > 2)
+				ssOutput << "[                   ] [" << ba2string(dbusBTAddress) << "] " << __func__ << " " << dbus_msg_Path << std::endl;
+			ssOutput << bluez_dbus_msg_iter(array_iter, dbusBTAddress, dbusTemp, bServicesResolved, dbus_msg_Path); // handle the "a{sv}" portion of the message
 		}
 	}
 	if (ConsoleVerbosity > 1)
