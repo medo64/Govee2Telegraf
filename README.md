@@ -3,20 +3,6 @@
 Temperature and humidity logging into Telegraf for Govee sensors.
 
 
-## Create Docker Image
-
-To create docker image, you need to be on Alpine Linux system and install the
-following prerequisites:
-~~~bash
-apk add build-base cmake pkgconfig bluez-dev dbus-dev
-~~~
-
-After that you can create image using:
-~~~bash
-make all
-~~~
-
-
 ## Environment variables
 
 The following environment variables are needed for telegraf communication to
@@ -52,6 +38,20 @@ docker run \
     -e TELEGRAF_USERNAME=<user> \
     -e TELEGRAF_PASSWORD=<password> \
     medo64/govee2telegraf:latest
+~~~
+
+
+## Create Docker Image
+
+To create docker image, you need to be on Alpine Linux system and install the
+following prerequisites:
+~~~bash
+apk add build-base cmake pkgconfig bluez-dev dbus-dev
+~~~
+
+After that you can create image using:
+~~~bash
+make all
 ~~~
 
 
