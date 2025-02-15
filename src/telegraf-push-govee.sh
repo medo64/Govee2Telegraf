@@ -43,6 +43,9 @@ while(true); do
 
     TIME_START=$(date +%s)
     while IFS= read -r LINE; do
+        TIMESTAMP=`date +%s`
+        echo $TIMESTAMP > /var/run/.govee2telegraf.recv.timestamp
+
         INPUT=`echo "$LINE" | grep -E '\(Temp\).*\(Humidity\).*\(Battery\)'`
         if [ "$INPUT" == "" ]; then continue; fi
         if [ "$DEBUG" -ne 0 ]; then echo -e "${ANSI_BLUE}$INPUT${ANSI_RESET}"; fi
@@ -59,9 +62,12 @@ while(true); do
         echo -ne "${ANSI_RESET}"
 
         if [ "$MISSING_TELEGRAF_VARIABLES" == "" ]; then
-            CONTENT="temp,device=$DEVICE temp=${TEMPERATURE},humidity=${HUMIDITY},battery=${BATTERY} `date +%s`"$'\n'
+            CONTENT="temp,device=$DEVICE temp=${TEMPERATURE},humidity=${HUMIDITY},battery=${BATTERY} $TIMESTAMP"$'\n'
             CONTENT_LEN=$(echo -en ${CONTENT} | wc -c)
             echo -ne "POST /api/v2/write?u=$TELEGRAF_USERNAME&p=$TELEGRAF_PASSWORD&bucket=${TELEGRAF_BUCKET}&precision=s HTTP/1.0\r\nHost: $TELEGRAF_HOST\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ${CONTENT_LEN}\r\n\r\n${CONTENT}" | nc -w 15 $TELEGRAF_HOST $TELEGRAF_PORT
+            if [ $? -eq 0 ]; then
+                echo $TIMESTAMP > /var/run/.govee2telegraf.send.timestamp
+            fi
         else
             echo -e "${ANSI_RED}Not sending to Telegraf ($MISSING_TELEGRAF_VARIABLES)${ANSI_RESET}"
             echo

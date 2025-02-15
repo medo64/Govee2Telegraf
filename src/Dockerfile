@@ -25,10 +25,12 @@ RUN echo "alias ll='ls -la'" > /etc/profile.d/alias.sh
 
 # Executables
 WORKDIR /app
-COPY lib/GoveeBTTempLogger/build/goveebttemplogger /app
-COPY src/telegraf-push-govee.sh /app
-RUN chmod +x /app/goveebttemplogger
-RUN chmod +x /app/telegraf-push-govee.sh
+COPY lib/GoveeBTTempLogger/build/goveebttemplogger .
+COPY src/telegraf-push-govee.sh .
+COPY src/health.sh health
+RUN chmod +x goveebttemplogger
+RUN chmod +x telegraf-push-govee.sh
+RUN chmod +x health
 
 # Done
 ENTRYPOINT ["/bin/ash", "-c", "/app/telegraf-push-govee.sh" ]

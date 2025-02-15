@@ -41,6 +41,22 @@ docker run \
 ~~~
 
 
+## Health Check
+
+Health check is available for container verification. It will return zero exit
+code if execution was successful and non-zero code if check has failed.
+
+To verify that container is receiving bluetooth Govee data:
+~~~bash
+/app/health
+~~~
+
+To verify that data is successfully sent to Telegraf:
+~~~bash
+/app/health -s
+~~~
+
+
 ## Create Docker Image
 
 To create docker image, you need to be on Alpine Linux system and install the
