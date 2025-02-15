@@ -42,13 +42,13 @@ endif
 
 publish: all
 ifneq ($(TAG),)
-	echo
-	docker tag $(NAME):$(TAG) medo64/$(NAME):$(TAG)
-	docker push medo64/$(NAME):$(TAG)
-	echo
-	docker tag $(NAME):latest medo64/$(NAME):latest
-	docker push medo64/$(NAME):latest
+	@echo
+	@docker tag $(NAME):$(TAG) medo64/$(NAME):$(TAG)
+	@docker push medo64/$(NAME):$(TAG)
+	@echo
+	@docker tag $(NAME):latest medo64/$(NAME):latest
+	@docker push medo64/$(NAME):latest
 endif
-	echo
-	docker tag $(NAME):unstable medo64/$(NAME):unstable
-	docker push medo64/$(NAME):unstable
+	@echo
+	@docker tag $(NAME):unstable medo64/$(NAME):unstable
+	@docker push medo64/$(NAME):unstable
