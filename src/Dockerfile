@@ -29,12 +29,12 @@ RUN chmod +x goveebttemplogger
 
 # Executables
 WORKDIR /app
-COPY src/init.sh init
+COPY src/init.sh goveebttemplogger
 COPY src/health.sh health
-RUN chmod +x init
+RUN chmod +x goveebttemplogger
 RUN chmod +x health
 
 # Done
 HEALTHCHECK --start-period=120s --start-interval=3s --interval=15s --retries=10 --timeout=1s \
     CMD /app/health
-ENTRYPOINT ["/bin/ash", "-c", "/app/init" ]
+ENTRYPOINT [ "/app/goveebttemplogger" ]
