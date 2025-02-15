@@ -35,4 +35,5 @@ RUN chmod +x init
 RUN chmod +x health
 
 # Done
+HEALTHCHECK --interval=15s --timeout=1s --retries=10 CMD /app/health
 ENTRYPOINT ["/bin/ash", "-c", "/app/init" ]

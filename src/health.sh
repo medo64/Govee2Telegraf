@@ -20,5 +20,5 @@ if [ $TIMESTAMP_DIFF -le $SECONDS_MAX ]; then
     exit 0
 else
     echo -e "${ANSI_RED}Not healthy${ANSI_RESET}"
-    exit 113
+    exit 1
 fi
