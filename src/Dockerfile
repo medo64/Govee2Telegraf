@@ -23,14 +23,17 @@ RUN apk add bluez-dev libstdc++
 ENV ENV=/etc/profile
 RUN echo "alias ll='ls -la'" > /etc/profile.d/alias.sh
 
+# Executables (libs)
+WORKDIR /app/lib
+COPY lib/GoveeBTTempLogger/build/goveebttemplogger .
+RUN chmod +x goveebttemplogger
+
 # Executables
 WORKDIR /app
-COPY lib/GoveeBTTempLogger/build/goveebttemplogger .
-COPY src/telegraf-push-govee.sh .
+COPY src/init.sh init
 COPY src/health.sh health
-RUN chmod +x goveebttemplogger
-RUN chmod +x telegraf-push-govee.sh
+RUN chmod +x init
 RUN chmod +x health
 
 # Done
-ENTRYPOINT ["/bin/ash", "-c", "/app/telegraf-push-govee.sh" ]
+ENTRYPOINT ["/bin/ash", "-c", "/app/init" ]
