@@ -2,8 +2,11 @@ FROM alpine:latest
 
 USER root
 
-# Basic
-RUN apk add bash
+# Environment
+ENV ENV="/etc/profile"
+RUN echo "alias ll='ls -la'" > /etc/profile.d/00-aliases.sh
+
+# Services
 RUN apk add openrc
 RUN mkdir -p /run/openrc/exclusive
 RUN touch /run/openrc/softlevel
@@ -16,14 +19,10 @@ RUN rc-update add dbus
 RUN apk add bluez
 RUN rc-update add bluetooth default
 
-# GoveeBTTempLogger
+# Prerequisites (GoveeBTTempLogger)
 RUN apk add bluez-dev libstdc++
 
-# Environment
-ENV ENV=/etc/profile
-RUN echo "alias ll='ls -la'" > /etc/profile.d/alias.sh
-
-# Executables (libs)
+# Executables (GoveeBTTempLogger)
 WORKDIR /app/lib
 COPY lib/GoveeBTTempLogger/build/goveebttemplogger .
 RUN chmod +x goveebttemplogger
